@@ -10,7 +10,7 @@ import {
   UserRole,
   CourseStatus,
   LessonProgressStatus,
-  RefundStatus,
+  RefundRequestStatus,
   QuestionType,
   TeamMemberRole,
 } from "../app/db/schema";
@@ -2775,9 +2775,14 @@ This course is still in draft while the cluster examples are rewritten against t
   db.insert(schema.refunds)
     .values({
       purchaseId: liamPurchase.id,
-      status: RefundStatus.Open,
+      status: RefundRequestStatus.Open,
       reason: "Bought the wrong one, I meant the advanced course.",
       requestedAt: daysAgo(4),
+      // His three completed lessons were all done before he asked; he has
+      // no watch events on this course.
+      completedLessonsAtRequest: 3,
+      totalLessonsAtRequest: course1LessonIds.length,
+      watchedSecondsAtRequest: 0,
     })
     .run();
 

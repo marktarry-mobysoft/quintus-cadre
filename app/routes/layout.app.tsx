@@ -5,11 +5,13 @@ import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
+import { countRefundsNeedingAttention } from "~/lib/refunds.server";
 import { eq, and, or, sql, desc } from "drizzle-orm";
 import { db } from "~/db";
 import {
   users,
   courses,
+  enrollments,
   modules,
   lessons,
   lessonProgress,
@@ -17,6 +19,7 @@ import {
   teamMembers,
   TeamMemberRole,
   LessonProgressStatus,
+  UserRole,
 } from "~/db/schema";
 
 function getAllUsers() {
@@ -164,6 +167,15 @@ function getRecentlyProgressedCourses(userId: number, limit: number = 3) {
     .innerJoin(lessons, eq(lessonProgress.lessonId, lessons.id))
     .innerJoin(modules, eq(lessons.moduleId, modules.id))
     .innerJoin(courses, eq(modules.courseId, courses.id))
+    // Progress is kept after a refund but hidden until the learner buys again
+    // (ADR 0002), so only courses they're still enrolled in show here.
+    .innerJoin(
+      enrollments,
+      and(
+        eq(enrollments.courseId, courses.id),
+        eq(enrollments.userId, userId)
+      )
+    )
     .where(eq(lessonProgress.userId, userId))
     .groupBy(courses.id)
     .orderBy(desc(sql`max(${lessonProgress.id})`))
@@ -213,6 +225,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     countryTierInfo,
     countries: COUNTRIES,
     isTeamAdmin: currentUserId ? isTeamAdmin(currentUserId) : false,
+    refundAttentionCount:
+      currentUser?.role === UserRole.Admin ? countRefundsNeedingAttention() : 0,
   };
 }
 
@@ -225,6 +239,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     countryTierInfo,
     countries,
     isTeamAdmin: userIsTeamAdmin,
+    refundAttentionCount,
   } = loaderData;
 
   return (
@@ -233,6 +248,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
+        refundAttentionCount={refundAttentionCount}
       />
       <main className="flex-1 overflow-y-auto">
         <Outlet />

@@ -821,7 +821,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       };
     }
 
-    if (currentUserId) {
+    // Quiz attempts are kept after a refund but hidden until the learner
+    // buys the course again (ADR 0002).
+    if (currentUserId && enrolled) {
       const best = getBestAttempt(currentUserId, quizRecord.id);
       if (best) {
         bestAttempt = { score: best.score, passed: best.passed };

@@ -31,10 +31,18 @@ export enum QuestionType {
   TrueFalse = "true_false",
 }
 
-export enum RefundStatus {
+// The state of a Refund Request: has an Admin decided it yet, and which way?
+export enum RefundRequestStatus {
   Open = "open",
   Approved = "approved",
   Declined = "declined",
+}
+
+// The state of the Refund (the money) behind an Approved Refund Request.
+export enum RefundState {
+  Pending = "pending",
+  Issued = "issued",
+  Failed = "failed",
 }
 
 export enum TeamMemberRole {
@@ -238,17 +246,33 @@ export const refunds = sqliteTable(
       .references(() => purchases.id),
     status: text("status")
       .notNull()
-      .$type<RefundStatus>()
-      .default(RefundStatus.Open),
+      .$type<RefundRequestStatus>()
+      .default(RefundRequestStatus.Open),
     // The learner's own words, in the box on the course page.
     reason: text("reason").notNull(),
-    // Null until someone approves — a declined request refunds nothing.
+    // How far into the course the learner was when they raised the request.
+    completedLessonsAtRequest: integer("completed_lessons_at_request")
+      .notNull()
+      .default(0),
+    totalLessonsAtRequest: integer("total_lessons_at_request")
+      .notNull()
+      .default(0),
+    watchedSecondsAtRequest: real("watched_seconds_at_request")
+      .notNull()
+      .default(0),
+    // Null until an Admin approves — a declined request refunds nothing.
     amountRefunded: integer("amount_refunded"),
     requestedAt: text("requested_at")
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
+    // When an Admin decided the request, and which Admin.
     resolvedAt: text("resolved_at"),
     resolvedByUserId: integer("resolved_by_user_id").references(() => users.id),
+    // Set when an Admin declines. The learner is told it.
+    declineReason: text("decline_reason"),
+    // Null until approved; then the Refund starts out Pending.
+    refundState: text("refund_state").$type<RefundState>(),
+    issuedAt: text("issued_at"),
   },
   (table) => [index("refunds_purchase_idx").on(table.purchaseId)]
 );
@@ -288,6 +312,9 @@ export const coupons = sqliteTable("coupons", {
     .references(() => purchases.id),
   redeemedByUserId: integer("redeemed_by_user_id").references(() => users.id),
   redeemedAt: text("redeemed_at"),
+  // Set when the purchase behind an unclaimed seat is refunded. A revoked
+  // seat code can no longer be redeemed.
+  revokedAt: text("revoked_at"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

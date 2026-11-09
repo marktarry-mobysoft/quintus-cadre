@@ -14,6 +14,7 @@ import {
   Users,
   UsersRound,
   Moon,
+  ReceiptText,
   Sun,
   LogOut,
   Settings,
@@ -40,6 +41,8 @@ interface SidebarProps {
   currentUser: CurrentUser | null;
   recentCourses?: RecentCourse[];
   isTeamAdmin?: boolean;
+  /** Open Refund Requests plus Overdue Refunds. Only Admins get a count. */
+  refundAttentionCount?: number;
 }
 
 interface NavItem {
@@ -47,6 +50,7 @@ interface NavItem {
   to: string;
   icon: React.ReactNode;
   roles: UserRole[] | "all";
+  badge?: "refund-attention";
 }
 
 const navItems: NavItem[] = [
@@ -93,6 +97,13 @@ const navItems: NavItem[] = [
     roles: [UserRole.Admin],
   },
   {
+    label: "Manage Refund Requests",
+    to: "/admin/refund-requests",
+    icon: <ReceiptText className="size-4" />,
+    roles: [UserRole.Admin],
+    badge: "refund-attention",
+  },
+  {
     label: "Categories",
     to: "/admin/categories",
     icon: <Tag className="size-4" />,
@@ -110,6 +121,7 @@ export function Sidebar({
   currentUser,
   recentCourses = [],
   isTeamAdmin = false,
+  refundAttentionCount = 0,
 }: SidebarProps) {
   const currentUserRole = currentUser?.role ?? null;
   const [isDark, setIsDark] = useState(false);
@@ -153,6 +165,15 @@ export function Sidebar({
             >
               {item.icon}
               {item.label}
+              {item.badge === "refund-attention" &&
+                refundAttentionCount > 0 && (
+                  <span
+                    className="ml-auto rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground"
+                    aria-label={`${refundAttentionCount} need attention`}
+                  >
+                    {refundAttentionCount}
+                  </span>
+                )}
             </NavLink>
           ))}
         {isTeamAdmin && (

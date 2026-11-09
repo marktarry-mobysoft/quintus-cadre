@@ -10,19 +10,16 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import {
-  UserRole,
-  RefundStatus,
-  users,
-  courses,
-  purchases,
-  refunds,
-} from "~/db/schema";
+import { UserRole, users } from "~/db/schema";
 import { AlertTriangle } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 import { db } from "~/db";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { formatPrice } from "~/lib/utils";
+import {
+  listLearnerRefundRequests,
+  type LearnerRefundRequestStatus,
+} from "~/lib/refunds.server";
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty."),
@@ -55,25 +52,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw data("User not found.", { status: 404 });
   }
 
-  const openRefundRequests = db
-    .select({
-      id: refunds.id,
-      courseTitle: courses.title,
-      courseSlug: courses.slug,
-      amountPaid: purchases.amountPaid,
-      reason: refunds.reason,
-      requestedAt: refunds.requestedAt,
-    })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
-    .innerJoin(courses, eq(purchases.courseId, courses.id))
-    .where(
-      and(
-        eq(purchases.userId, currentUserId),
-        eq(refunds.status, RefundStatus.Open)
-      )
-    )
-    .all();
+  const refundRequests = listLearnerRefundRequests(currentUserId);
 
   return {
     user: {
@@ -83,7 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       bio: currentUser.bio,
       role: currentUser.role,
     },
-    openRefundRequests,
+    refundRequests,
   };
 }
 
@@ -122,7 +101,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Settings({ loaderData }: Route.ComponentProps) {
-  const { user, openRefundRequests } = loaderData;
+  const { user, refundRequests } = loaderData;
   const fetcher = useFetcher();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -209,18 +188,13 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
         </CardContent>
       </Card>
 
-      {openRefundRequests.length > 0 && (
+      {refundRequests.length > 0 && (
         <Card className="mt-8 max-w-md">
           <CardHeader>
             <h2 className="text-lg font-semibold">Refund Requests</h2>
-            <p className="text-sm text-muted-foreground">
-              {openRefundRequests.length === 1
-                ? "One refund request is waiting on us."
-                : `${openRefundRequests.length} refund requests are waiting on us.`}
-            </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {openRefundRequests.map((refundRequest) => (
+            {refundRequests.map((refundRequest) => (
               <div key={refundRequest.id} className="rounded-md border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <Link
@@ -229,21 +203,67 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
                   >
                     {refundRequest.courseTitle}
                   </Link>
-                  <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                    Open
-                  </span>
+                  <RefundRequestStatusBadge status={refundRequest.status} />
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {formatPrice(refundRequest.amountPaid)} · raised{" "}
                   {new Date(refundRequest.requestedAt).toLocaleDateString()}
                 </p>
                 <p className="mt-2 text-sm">{refundRequest.reason}</p>
+                {refundRequest.declineReason && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Why it was declined:
+                    </span>{" "}
+                    {refundRequest.declineReason}
+                  </p>
+                )}
               </div>
             ))}
           </CardContent>
         </Card>
       )}
     </div>
+  );
+}
+
+const STATUS_BADGES: Record<
+  LearnerRefundRequestStatus,
+  { label: string; className: string }
+> = {
+  open: {
+    label: "Open",
+    className:
+      "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  declined: {
+    label: "Declined",
+    className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  },
+  "on-its-way": {
+    label: "Refund on its way",
+    className:
+      "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  },
+  refunded: {
+    label: "Refunded",
+    className:
+      "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  },
+};
+
+function RefundRequestStatusBadge({
+  status,
+}: {
+  status: LearnerRefundRequestStatus;
+}) {
+  const badge = STATUS_BADGES[status];
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+    >
+      {badge.label}
+    </span>
   );
 }
 

@@ -1,7 +1,7 @@
 import { formatPrice } from "~/lib/utils";
 
-// The rules for when a Learner may make a Refund Request. See the Glossary in
-// CONTEXT.md for the terms used here.
+// The rules for when a Learner may make a Refund Request. See GLOSSARY.md for
+// the terms used here.
 
 /** Days after purchase during which a Learner may request a refund. */
 export const REFUND_WINDOW_DAYS = 14;

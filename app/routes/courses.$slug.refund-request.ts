@@ -1,6 +1,6 @@
 import { data, redirect } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/courses.$slug.refund";
+import type { Route } from "./+types/courses.$slug.refund-request";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
 import {
@@ -9,28 +9,29 @@ import {
   lessons,
   modules,
   purchases,
-  refunds,
+  refundRequests,
   users,
   videoWatchEvents,
-  RefundStatus,
+  RefundRequestStatus,
 } from "~/db/schema";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { getDiscountForCountry } from "~/lib/ppp";
-import { formatPrice } from "~/lib/utils";
+import {
+  buildRefundRequestedEmail,
+  REFUND_WATCH_LIMIT_SECONDS,
+  REFUND_WINDOW_DAYS,
+} from "~/lib/refund-requests";
 
-const REFUND_WINDOW_DAYS = 14;
-const MAX_WATCHED_HOURS = 2;
-
-const refundParamsSchema = z.object({
+const refundRequestParamsSchema = z.object({
   slug: z.string().min(1),
 });
 
-const refundActionSchema = z.object({
+const refundRequestActionSchema = z.object({
   reason: z
     .string()
     .trim()
-    .min(10, "Tell us a little more about why you want to cancel.")
+    .min(10, "Tell us a little more about why you want a refund.")
     .max(1000, "Please keep your reason under 1000 characters."),
 });
 
@@ -58,14 +59,14 @@ function getLessonIdsForCourse(courseId: number): number[] {
   return rows.map((row) => row.id);
 }
 
-function getOpenRefund(purchaseId: number) {
+function findUnresolvedRefundRequest(purchaseId: number) {
   return db
     .select()
-    .from(refunds)
+    .from(refundRequests)
     .where(
       and(
-        eq(refunds.purchaseId, purchaseId),
-        eq(refunds.status, RefundStatus.Requested)
+        eq(refundRequests.purchaseId, purchaseId),
+        eq(refundRequests.status, RefundRequestStatus.Requested)
       )
     )
     .get();
@@ -85,40 +86,14 @@ function lastDayOfWindow(purchasedAtIso: string): string {
   return calendarDay(deadline);
 }
 
-/**
- * The confirmation the learner gets in their inbox. There is no mail
- * transport wired up yet, so the built message goes to the server log.
- */
-function buildReversalEmail(input: {
-  learnerName: string;
-  learnerEmail: string;
-  courseTitle: string;
-  amount: number;
-}) {
-  return {
-    to: input.learnerEmail,
-    subject: `Reversal requested — ${input.courseTitle}`,
-    body: [
-      `Hi ${input.learnerName},`,
-      "",
-      `We have your Reversal request for "${input.courseTitle}".`,
-      `The Reversal is for ${formatPrice(input.amount)}, the amount you paid.`,
-      "",
-      "Our team reviews every Reversal by hand. You do not need to do anything else — we will email you again when it is done.",
-      "",
-      "— The Cadence team",
-    ].join("\n"),
-  };
-}
-
 export async function action({ params, request }: Route.ActionArgs) {
   const currentUserId = await getCurrentUserId(request);
 
   if (!currentUserId) {
-    throw data("You must be logged in to cancel a purchase.", { status: 401 });
+    throw data("You must be logged in to request a refund.", { status: 401 });
   }
 
-  const { slug } = parseParams(params, refundParamsSchema);
+  const { slug } = parseParams(params, refundRequestParamsSchema);
   const course = getCourseBySlug(slug);
 
   if (!course) {
@@ -141,14 +116,14 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("You have not bought this course.", { status: 403 });
   }
 
-  if (getOpenRefund(purchase.id)) {
-    throw data("You already have a request open on this purchase.", {
+  if (findUnresolvedRefundRequest(purchase.id)) {
+    throw data("You already have a refund request open for this purchase.", {
       status: 409,
     });
   }
 
   // A seat that came out of a team licence, and has been claimed, belongs to
-  // the team — the learner cannot hand it back on their own.
+  // the team — the Learner cannot request a refund for it on their own.
   const claimedSeat = db
     .select({ id: coupons.id })
     .from(coupons)
@@ -158,14 +133,14 @@ export async function action({ params, request }: Route.ActionArgs) {
     .get();
 
   if (claimedSeat) {
-    throw data("A claimed team seat cannot be cancelled.", { status: 403 });
+    throw data("Claimed team seats can't be refunded.", { status: 403 });
   }
 
   const today = calendarDay(new Date());
   const withinRefundWindow = today <= lastDayOfWindow(purchase.createdAt);
 
   if (!withinRefundWindow) {
-    throw data(`The ${REFUND_WINDOW_DAYS}-day window has closed.`, {
+    throw data(`The ${REFUND_WINDOW_DAYS}-day refund window has closed.`, {
       status: 403,
     });
   }
@@ -194,35 +169,35 @@ export async function action({ params, request }: Route.ActionArgs) {
     );
   }
 
-  if (watchedSeconds >= MAX_WATCHED_HOURS * 60 * 60) {
-    throw data("You have watched too much of this course to cancel it.", {
+  if (watchedSeconds >= REFUND_WATCH_LIMIT_SECONDS) {
+    throw data("You've watched too much of this course to request a refund.", {
       status: 403,
     });
   }
 
-  // A purchase made at a purchasing-power price is given back at that price,
+  // A purchase made at a purchasing-power price is refunded at that price,
   // not at the list price of the course.
   const pppDiscount = getDiscountForCountry(purchase.country);
   const refundableAmount = pppDiscount > 0 ? purchase.amountPaid : course.price;
 
   const formData = await request.formData();
-  const parsed = parseFormData(formData, refundActionSchema);
+  const parsed = parseFormData(formData, refundRequestActionSchema);
 
   if (!parsed.success) {
     return data({ errors: parsed.errors }, { status: 400 });
   }
 
   db
-    .insert(refunds)
+    .insert(refundRequests)
     .values({
       purchaseId: purchase.id,
-      status: RefundStatus.Requested,
+      status: RefundRequestStatus.Requested,
       reason: parsed.data.reason,
     })
     .returning()
     .get();
 
-  const email = buildReversalEmail({
+  const email = buildRefundRequestedEmail({
     learnerName: learner.name,
     learnerEmail: learner.email,
     courseTitle: course.title,

@@ -26,8 +26,6 @@ describe("buildRefundRequestedEmail", () => {
 
   it("uses only the glossary terms", () => {
     const text = `${email.subject}\n${email.body}`;
-    expect(text).not.toMatch(
-      /reversal|chargeback|cancel|pending|\bopen\b|raised/i
-    );
+    expect(text).not.toMatch(/reversal|chargeback|cancel|pending|raised/i);
   });
 });

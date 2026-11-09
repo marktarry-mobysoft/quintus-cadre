@@ -237,8 +237,8 @@ export const purchases = sqliteTable(
   (table) => [index("purchases_course_idx").on(table.courseId)]
 );
 
-export const refunds = sqliteTable(
-  "refunds",
+export const refundRequests = sqliteTable(
+  "refund_requests",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     purchaseId: integer("purchase_id")
@@ -274,7 +274,7 @@ export const refunds = sqliteTable(
     refundState: text("refund_state").$type<RefundState>(),
     issuedAt: text("issued_at"),
   },
-  (table) => [index("refunds_purchase_idx").on(table.purchaseId)]
+  (table) => [index("refund_requests_purchase_idx").on(table.purchaseId)]
 );
 
 export const teams = sqliteTable("teams", {

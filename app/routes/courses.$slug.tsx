@@ -902,12 +902,12 @@ function RequestRefund({ slug, amount }: { slug: string; amount: number }) {
     <div className="border-t pt-4">
       <p className="mb-2 text-sm font-medium">Request a refund</p>
       <p className="mb-3 text-xs text-muted-foreground">
-        We will send {formatPrice(amount)} back to the card you paid with, once
-        someone has read your note.
+        If an Admin approves your refund request, we will refund{" "}
+        {formatPrice(amount)} to the card you paid with.
       </p>
       <fetcher.Form
         method="post"
-        action={`/courses/${slug}/refund`}
+        action={`/courses/${slug}/refund-request`}
         className="space-y-2"
       >
         <Textarea

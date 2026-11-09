@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import {
   agentProviders,
   CUSTOM_ID,
@@ -14,6 +16,31 @@ import {
 } from "./agents";
 
 const PORT = { port: 8787, platform: "linux" as NodeJS.Platform };
+
+/**
+ * A POSIX sh to run generated commands through. Native Windows Node cannot
+ * resolve `/bin/sh`, so there we use the sh.exe that ships with Git for
+ * Windows (`<Git>/mingw64/libexec/git-core` → `<Git>/usr/bin/sh.exe`).
+ */
+function findPosixShell(): string | undefined {
+  if (process.platform !== "win32") return "/bin/sh";
+  try {
+    const gitExecPath = execFileSync("git", ["--exec-path"], {
+      encoding: "utf8",
+    }).trim();
+    const sh = path.resolve(gitExecPath, "../../../usr/bin/sh.exe");
+    return existsSync(sh) ? sh : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const POSIX_SH = findPosixShell();
+
+function runInPosixShell(script: string): string {
+  if (!POSIX_SH) throw new Error("No POSIX sh available");
+  return execFileSync(POSIX_SH, ["-c", script], { encoding: "utf8" });
+}
 
 /** Resolve, and fail loudly if the answer was not a usable target. */
 function target(agent: string, provider?: string) {
@@ -1075,61 +1102,57 @@ describe("resolveChoice — custom base URL", () => {
 });
 
 describe("resolveChoice — custom base URL, per-agent command template", () => {
-  it("builds a one-run OpenCode provider config for the OpenAI-compatible route", () => {
-    const result = customTarget({
-      agent: "opencode",
-      provider: CUSTOM_ID,
-      customBaseUrl: "http://localhost:11434",
-      customRenderer: "openai",
-      customModel: "qwen3:8b",
-    });
-    const assignment = result.command.slice(0, -" opencode".length);
-    const serialized = execFileSync(
-      "/bin/sh",
-      [
-        "-c",
-        `${assignment} node -e 'process.stdout.write(process.env.OPENCODE_CONFIG_CONTENT)'`,
-      ],
-      { encoding: "utf8" }
-    );
-    const config = JSON.parse(serialized);
+  it.skipIf(!POSIX_SH)(
+    "builds a one-run OpenCode provider config for the OpenAI-compatible route",
+    () => {
+      const result = customTarget({
+        agent: "opencode",
+        provider: CUSTOM_ID,
+        customBaseUrl: "http://localhost:11434",
+        customRenderer: "openai",
+        customModel: "qwen3:8b",
+      });
+      const assignment = result.command.slice(0, -" opencode".length);
+      const serialized = runInPosixShell(
+        `${assignment} node -e 'process.stdout.write(process.env.OPENCODE_CONFIG_CONTENT)'`
+      );
+      const config = JSON.parse(serialized);
 
-    expect(config.provider["request-logger"]).toEqual({
-      npm: "@ai-sdk/openai-compatible",
-      name: "Request Logger",
-      options: { baseURL: "http://localhost:8787/v1" },
-      models: { "qwen3:8b": { name: "qwen3:8b" } },
-    });
-    expect(config.model).toBe("request-logger/qwen3:8b");
-    expect(config.small_model).toBe("request-logger/qwen3:8b");
-    expect(result.setup).toEqual([]);
-  });
+      expect(config.provider["request-logger"]).toEqual({
+        npm: "@ai-sdk/openai-compatible",
+        name: "Request Logger",
+        options: { baseURL: "http://localhost:8787/v1" },
+        models: { "qwen3:8b": { name: "qwen3:8b" } },
+      });
+      expect(config.model).toBe("request-logger/qwen3:8b");
+      expect(config.small_model).toBe("request-logger/qwen3:8b");
+      expect(result.setup).toEqual([]);
+    }
+  );
 
-  it("shell-quotes a model ID containing quotes and metacharacters", () => {
-    const model = `model ' "$HOME"; printf INJECTED`;
-    const result = customTarget({
-      agent: "opencode",
-      provider: CUSTOM_ID,
-      customBaseUrl: "http://localhost:11434",
-      customRenderer: "openai",
-      customModel: model,
-    });
-    const assignment = result.command.slice(0, -" opencode".length);
-    const serialized = execFileSync(
-      "/bin/sh",
-      [
-        "-c",
-        `${assignment} node -e 'process.stdout.write(process.env.OPENCODE_CONFIG_CONTENT)'`,
-      ],
-      { encoding: "utf8" }
-    );
-    const config = JSON.parse(serialized);
+  it.skipIf(!POSIX_SH)(
+    "shell-quotes a model ID containing quotes and metacharacters",
+    () => {
+      const model = `model ' "$HOME"; printf INJECTED`;
+      const result = customTarget({
+        agent: "opencode",
+        provider: CUSTOM_ID,
+        customBaseUrl: "http://localhost:11434",
+        customRenderer: "openai",
+        customModel: model,
+      });
+      const assignment = result.command.slice(0, -" opencode".length);
+      const serialized = runInPosixShell(
+        `${assignment} node -e 'process.stdout.write(process.env.OPENCODE_CONFIG_CONTENT)'`
+      );
+      const config = JSON.parse(serialized);
 
-    expect(config.model).toBe(`request-logger/${model}`);
-    expect(config.provider["request-logger"].models).toEqual({
-      [model]: { name: model },
-    });
-  });
+      expect(config.model).toBe(`request-logger/${model}`);
+      expect(config.provider["request-logger"].models).toEqual({
+        [model]: { name: model },
+      });
+    }
+  );
 
   it("requires a remembered model for specialized OpenCode custom targets", () => {
     const result = resolveChoice(

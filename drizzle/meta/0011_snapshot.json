@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7eeee317-ae6f-4627-9182-bec5b4390e05",
-  "prevId": "bbe49cdc-023b-49e7-bf7d-6cd92deac1b7",
+  "id": "4dc7aac1-0cb0-48ee-805f-504b96ac7e04",
+  "prevId": "0ed58576-992b-49d0-a568-52483a1b4f37",
   "tables": {
     "categories": {
       "name": "categories",
@@ -1245,8 +1245,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "refunds": {
-      "name": "refunds",
+    "refund_requests": {
+      "name": "refund_requests",
       "columns": {
         "id": {
           "name": "id",
@@ -1352,8 +1352,8 @@
         }
       },
       "indexes": {
-        "refunds_purchase_idx": {
-          "name": "refunds_purchase_idx",
+        "refund_requests_purchase_idx": {
+          "name": "refund_requests_purchase_idx",
           "columns": [
             "purchase_id"
           ],
@@ -1361,9 +1361,9 @@
         }
       },
       "foreignKeys": {
-        "refunds_purchase_id_purchases_id_fk": {
-          "name": "refunds_purchase_id_purchases_id_fk",
-          "tableFrom": "refunds",
+        "refund_requests_purchase_id_purchases_id_fk": {
+          "name": "refund_requests_purchase_id_purchases_id_fk",
+          "tableFrom": "refund_requests",
           "tableTo": "purchases",
           "columnsFrom": [
             "purchase_id"
@@ -1374,9 +1374,9 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "refunds_resolved_by_user_id_users_id_fk": {
-          "name": "refunds_resolved_by_user_id_users_id_fk",
-          "tableFrom": "refunds",
+        "refund_requests_resolved_by_user_id_users_id_fk": {
+          "name": "refund_requests_resolved_by_user_id_users_id_fk",
+          "tableFrom": "refund_requests",
           "tableTo": "users",
           "columnsFrom": [
             "resolved_by_user_id"

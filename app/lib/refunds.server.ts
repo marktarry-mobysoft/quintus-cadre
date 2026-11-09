@@ -13,7 +13,7 @@ import {
   purchases,
   RefundRequestStatus,
   RefundState,
-  refunds,
+  refundRequests,
   UserRole,
   users,
   videoWatchEvents,
@@ -110,14 +110,14 @@ function getLatestPurchase(userId: number, courseId: number) {
 
 function hasApprovedRefundRequestForCourse(userId: number, courseId: number) {
   return !!db
-    .select({ id: refunds.id })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
+    .select({ id: refundRequests.id })
+    .from(refundRequests)
+    .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
     .where(
       and(
         eq(purchases.userId, userId),
         eq(purchases.courseId, courseId),
-        eq(refunds.status, RefundRequestStatus.Approved)
+        eq(refundRequests.status, RefundRequestStatus.Approved)
       )
     )
     .get();
@@ -125,12 +125,12 @@ function hasApprovedRefundRequestForCourse(userId: number, courseId: number) {
 
 function hasOpenRefundRequest(purchaseId: number) {
   return !!db
-    .select({ id: refunds.id })
-    .from(refunds)
+    .select({ id: refundRequests.id })
+    .from(refundRequests)
     .where(
       and(
-        eq(refunds.purchaseId, purchaseId),
-        eq(refunds.status, RefundRequestStatus.Open)
+        eq(refundRequests.purchaseId, purchaseId),
+        eq(refundRequests.status, RefundRequestStatus.Open)
       )
     )
     .get();
@@ -232,9 +232,9 @@ export function checkRefundEligibility(
 function getRefundRequest(refundRequestId: number) {
   return db
     .select({
-      id: refunds.id,
-      status: refunds.status,
-      refundState: refunds.refundState,
+      id: refundRequests.id,
+      status: refundRequests.status,
+      refundState: refundRequests.refundState,
       purchaseId: purchases.id,
       amountPaid: purchases.amountPaid,
       learnerId: users.id,
@@ -243,11 +243,11 @@ function getRefundRequest(refundRequestId: number) {
       courseId: courses.id,
       courseTitle: courses.title,
     })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
+    .from(refundRequests)
+    .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
     .innerJoin(users, eq(purchases.userId, users.id))
     .innerJoin(courses, eq(purchases.courseId, courses.id))
-    .where(eq(refunds.id, refundRequestId))
+    .where(eq(refundRequests.id, refundRequestId))
     .get();
 }
 
@@ -324,7 +324,7 @@ export function approveRefundRequest(
     .get();
 
   db.transaction((tx) => {
-    tx.update(refunds)
+    tx.update(refundRequests)
       .set({
         status: RefundRequestStatus.Approved,
         amountRefunded: refundRequest.amountPaid,
@@ -332,7 +332,7 @@ export function approveRefundRequest(
         resolvedAt: decidedAt,
         resolvedByUserId: adminId,
       })
-      .where(eq(refunds.id, refundRequest.id))
+      .where(eq(refundRequests.id, refundRequest.id))
       .run();
 
     if (!isTeamLicence) {
@@ -399,14 +399,14 @@ export function declineRefundRequest(
     throw data("Give the learner a reason for declining.", { status: 400 });
   }
 
-  db.update(refunds)
+  db.update(refundRequests)
     .set({
       status: RefundRequestStatus.Declined,
       declineReason,
       resolvedAt: now.toISOString(),
       resolvedByUserId: adminId,
     })
-    .where(eq(refunds.id, refundRequest.id))
+    .where(eq(refundRequests.id, refundRequest.id))
     .run();
 
   sendEmail({
@@ -457,9 +457,9 @@ export function markRefundIssued(
 ) {
   const refundRequest = requireRefundAwaitingIssue(refundRequestId, adminId);
 
-  db.update(refunds)
+  db.update(refundRequests)
     .set({ refundState: RefundState.Issued, issuedAt: now.toISOString() })
-    .where(eq(refunds.id, refundRequest.id))
+    .where(eq(refundRequests.id, refundRequest.id))
     .run();
 
   sendEmail({
@@ -478,9 +478,9 @@ export function markRefundIssued(
 export function markRefundFailed(refundRequestId: number, adminId: number) {
   const refundRequest = requireRefundAwaitingIssue(refundRequestId, adminId);
 
-  db.update(refunds)
+  db.update(refundRequests)
     .set({ refundState: RefundState.Failed })
-    .where(eq(refunds.id, refundRequest.id))
+    .where(eq(refundRequests.id, refundRequest.id))
     .run();
 }
 
@@ -489,12 +489,12 @@ export function markRefundFailed(refundRequestId: number, adminId: number) {
 function listOpenRefundRequests() {
   return db
     .select({
-      id: refunds.id,
-      reason: refunds.reason,
-      requestedAt: refunds.requestedAt,
-      completedLessonsAtRequest: refunds.completedLessonsAtRequest,
-      totalLessonsAtRequest: refunds.totalLessonsAtRequest,
-      watchedSecondsAtRequest: refunds.watchedSecondsAtRequest,
+      id: refundRequests.id,
+      reason: refundRequests.reason,
+      requestedAt: refundRequests.requestedAt,
+      completedLessonsAtRequest: refundRequests.completedLessonsAtRequest,
+      totalLessonsAtRequest: refundRequests.totalLessonsAtRequest,
+      watchedSecondsAtRequest: refundRequests.watchedSecondsAtRequest,
       purchaseId: purchases.id,
       purchasedAt: purchases.createdAt,
       amountPaid: purchases.amountPaid,
@@ -505,12 +505,12 @@ function listOpenRefundRequests() {
       courseTitle: courses.title,
       courseSlug: courses.slug,
     })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
+    .from(refundRequests)
+    .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
     .innerJoin(users, eq(purchases.userId, users.id))
     .innerJoin(courses, eq(purchases.courseId, courses.id))
-    .where(eq(refunds.status, RefundRequestStatus.Open))
-    .orderBy(asc(refunds.requestedAt), asc(refunds.id))
+    .where(eq(refundRequests.status, RefundRequestStatus.Open))
+    .orderBy(asc(refundRequests.requestedAt), asc(refundRequests.id))
     .all();
 }
 
@@ -518,43 +518,43 @@ function listDeclinedRefundRequests(purchaseIds: number[]) {
   if (purchaseIds.length === 0) return [];
   return db
     .select({
-      id: refunds.id,
-      purchaseId: refunds.purchaseId,
-      reason: refunds.reason,
-      declineReason: refunds.declineReason,
-      requestedAt: refunds.requestedAt,
-      resolvedAt: refunds.resolvedAt,
+      id: refundRequests.id,
+      purchaseId: refundRequests.purchaseId,
+      reason: refundRequests.reason,
+      declineReason: refundRequests.declineReason,
+      requestedAt: refundRequests.requestedAt,
+      resolvedAt: refundRequests.resolvedAt,
     })
-    .from(refunds)
+    .from(refundRequests)
     .where(
       and(
-        inArray(refunds.purchaseId, purchaseIds),
-        eq(refunds.status, RefundRequestStatus.Declined)
+        inArray(refundRequests.purchaseId, purchaseIds),
+        eq(refundRequests.status, RefundRequestStatus.Declined)
       )
     )
-    .orderBy(asc(refunds.requestedAt))
+    .orderBy(asc(refundRequests.requestedAt))
     .all();
 }
 
 function listUnissuedRefunds() {
   return db
     .select({
-      id: refunds.id,
-      refundState: refunds.refundState,
-      amountRefunded: refunds.amountRefunded,
-      approvedAt: refunds.resolvedAt,
+      id: refundRequests.id,
+      refundState: refundRequests.refundState,
+      amountRefunded: refundRequests.amountRefunded,
+      approvedAt: refundRequests.resolvedAt,
       learnerName: users.name,
       learnerEmail: users.email,
       courseTitle: courses.title,
     })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
+    .from(refundRequests)
+    .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
     .innerJoin(users, eq(purchases.userId, users.id))
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .where(
-      inArray(refunds.refundState, [RefundState.Pending, RefundState.Failed])
+      inArray(refundRequests.refundState, [RefundState.Pending, RefundState.Failed])
     )
-    .orderBy(asc(refunds.resolvedAt))
+    .orderBy(asc(refundRequests.resolvedAt))
     .all()
     .flatMap(({ refundState, approvedAt, amountRefunded, ...rest }) => {
       // An approved request always has these; skip anything that doesn't.
@@ -609,8 +609,8 @@ export function getRefundOverview(now: Date = new Date()) {
 export function countRefundsNeedingAttention(now: Date = new Date()) {
   const open = db
     .select({ count: sql<number>`count(*)` })
-    .from(refunds)
-    .where(eq(refunds.status, RefundRequestStatus.Open))
+    .from(refundRequests)
+    .where(eq(refundRequests.status, RefundRequestStatus.Open))
     .get();
 
   const overdue = listUnissuedRefunds().filter((refund) =>
@@ -642,21 +642,21 @@ function learnerStatus(
 export function listLearnerRefundRequests(userId: number) {
   return db
     .select({
-      id: refunds.id,
+      id: refundRequests.id,
       courseTitle: courses.title,
       courseSlug: courses.slug,
       amountPaid: purchases.amountPaid,
-      reason: refunds.reason,
-      requestedAt: refunds.requestedAt,
-      status: refunds.status,
-      refundState: refunds.refundState,
-      declineReason: refunds.declineReason,
+      reason: refundRequests.reason,
+      requestedAt: refundRequests.requestedAt,
+      status: refundRequests.status,
+      refundState: refundRequests.refundState,
+      declineReason: refundRequests.declineReason,
     })
-    .from(refunds)
-    .innerJoin(purchases, eq(refunds.purchaseId, purchases.id))
+    .from(refundRequests)
+    .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .where(eq(purchases.userId, userId))
-    .orderBy(desc(refunds.requestedAt), desc(refunds.id))
+    .orderBy(desc(refundRequests.requestedAt), desc(refundRequests.id))
     .all()
     .map(({ status, refundState, declineReason, ...rest }) => ({
       ...rest,

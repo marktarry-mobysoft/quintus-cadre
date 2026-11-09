@@ -6,6 +6,9 @@ Cadence sells video courses to learners. This glossary covers the language aroun
 
 ### People
 
+**Learner**:
+A user who buys and takes courses. A Learner may raise a Refund Request.
+
 **Admin**:
 A platform administrator. The only person who may approve or decline a Refund Request, because they have no stake in the course's quality. An Admin never decides a Refund Request they raised themselves.
 _Avoid_: Reviewer, the team, staff, Instructor (for refund decisions)

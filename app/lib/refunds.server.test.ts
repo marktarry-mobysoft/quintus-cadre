@@ -45,7 +45,7 @@ import { getAccess } from "./access.server";
 
 function raiseOpenRefundRequest(purchaseId: number) {
   return testDb
-    .insert(schema.refunds)
+    .insert(schema.refundRequests)
     .values({
       purchaseId,
       status: schema.RefundRequestStatus.Open,
@@ -341,7 +341,7 @@ describe("the Admin's overview of Refund Requests", () => {
       .where(eq(schema.purchases.id, other.id))
       .run();
     testDb
-      .insert(schema.refunds)
+      .insert(schema.refundRequests)
       .values([
         { purchaseId: other.id, reason: "Newer.", requestedAt: daysBefore(1) },
         {
@@ -375,7 +375,7 @@ describe("the Admin's overview of Refund Requests", () => {
   it("shows earlier Declined Refund Requests on the same purchase", () => {
     const scenario = seedRefundScenario(testDb);
     testDb
-      .insert(schema.refunds)
+      .insert(schema.refundRequests)
       .values([
         {
           purchaseId: scenario.purchase.id,

@@ -77,7 +77,8 @@ async function seed() {
     DROP TABLE IF EXISTS coupons;
     DROP TABLE IF EXISTS team_members;
     DROP TABLE IF EXISTS teams;
-    DROP TABLE IF EXISTS refunds;
+    DROP TABLE IF EXISTS refund_requests;
+    DROP TABLE IF EXISTS refunds; -- pre-0010 name of refund_requests
     DROP TABLE IF EXISTS purchases;
     DROP TABLE IF EXISTS enrollments;
     DROP TABLE IF EXISTS lessons;
@@ -2772,7 +2773,7 @@ This course is still in draft while the cluster examples are rewritten against t
       updatedAt: daysAgo(6),
     })
     .run();
-  db.insert(schema.refunds)
+  db.insert(schema.refundRequests)
     .values({
       purchaseId: liamPurchase.id,
       status: RefundRequestStatus.Open,

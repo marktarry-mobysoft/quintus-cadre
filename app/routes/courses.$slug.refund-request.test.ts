@@ -25,10 +25,10 @@ vi.mock("~/lib/session", () => ({
 
 vi.mock("~/lib/email.server", () => ({ sendEmail: vi.fn() }));
 
-import { action } from "./courses.$slug.refund";
+import { action } from "./courses.$slug.refund-request";
 
 async function raiseRefundRequest(reason?: string) {
-  const request = new Request("http://localhost/courses/test-course/refund", {
+  const request = new Request("http://localhost/courses/test-course/refund-request", {
     method: "POST",
     body: refundRequestForm(reason),
   });
@@ -65,7 +65,7 @@ describe("raising a Refund Request", () => {
 
   it("is rejected on a later purchase once a Refund Request for the course was approved", async () => {
     await raiseRefundRequest();
-    const [first] = testDb.select().from(schema.refunds).all();
+    const [first] = testDb.select().from(schema.refundRequests).all();
     approveRefundRequest(first.id, scenario.admin.id);
     buyCourse(testDb, scenario.learner.id, scenario.course.id);
 
@@ -74,7 +74,7 @@ describe("raising a Refund Request", () => {
 
   it("can be raised again after a decline, within the original Refund Window", async () => {
     await raiseRefundRequest();
-    const [first] = testDb.select().from(schema.refunds).all();
+    const [first] = testDb.select().from(schema.refundRequests).all();
     declineRefundRequest(first.id, scenario.admin.id, "You watched most of it.");
 
     const response = await raiseRefundRequest();
@@ -89,7 +89,7 @@ describe("raising a Refund Request after a decline, late in the window", () => {
     const scenario = seedRefundScenario(testDb, 15);
     currentUserId = scenario.learner.id;
     testDb
-      .insert(schema.refunds)
+      .insert(schema.refundRequests)
       .values({
         purchaseId: scenario.purchase.id,
         status: schema.RefundRequestStatus.Declined,

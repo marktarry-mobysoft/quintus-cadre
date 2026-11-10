@@ -23,3 +23,9 @@ is a lie the type checker believes.
 Both switch the type checker off at the exact point you are least sure. If a
 value can be missing, narrow it with a check. If you cannot name the type,
 the shape is wrong — fix the shape.
+
+## Store money as integer cents
+
+Every amount of money is a whole number of cents in an `integer` column.
+Never use `real` for money. Work out discounts in cents and round once with
+`Math.round`. Turn cents into dollars for display only through `formatPrice`.

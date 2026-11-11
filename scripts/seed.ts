@@ -2003,6 +2003,42 @@ This course is still in draft while the cluster examples are rewritten against t
     `Created ${countRows(schema.comments)} lesson comments across ${countRows(schema.comments, isNull(schema.comments.parentId))} threads.`
   );
 
+  // ─── Bookmarks and Notes ───
+  // One enrolled student has a few of each across two courses, so the Saved
+  // page and the lesson-page controls have something to render. A Note that
+  // was edited after it was written shows createdAt and updatedAt apart.
+
+  db.insert(schema.bookmarks)
+    .values([
+      { userId: students[0].id, lessonId: course1LessonIds[2], createdAt: daysAgo(20) },
+      { userId: students[0].id, lessonId: course1LessonIds[4], createdAt: daysAgo(6) },
+      { userId: students[0].id, lessonId: course2LessonIds[1], createdAt: daysAgo(2) },
+    ])
+    .run();
+
+  db.insert(schema.notes)
+    .values([
+      {
+        userId: students[0].id,
+        lessonId: course1LessonIds[2],
+        body: "Use `npx tsc`, not a global install.\n# keeps the version pinned",
+        createdAt: daysAgo(29),
+        updatedAt: daysAgo(10),
+      },
+      {
+        userId: students[0].id,
+        lessonId: course2LessonIds[1],
+        body: "418 is in the status code table now.",
+        createdAt: daysAgo(3),
+        updatedAt: daysAgo(3),
+      },
+    ])
+    .run();
+
+  console.log(
+    `Created ${countRows(schema.bookmarks)} bookmarks and ${countRows(schema.notes)} notes.`
+  );
+
   // ─── Lesson Progress ───
 
   // Helper to mark lessons as complete

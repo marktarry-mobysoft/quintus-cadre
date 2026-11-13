@@ -44,4 +44,11 @@ describe("noteDraftStatus", () => {
     expect(status.unsaved).toBe(false);
     expect(status.canSave).toBe(false);
   });
+
+  it("counts the limit on the trimmed note, as the server does", () => {
+    const status = noteDraftStatus(`${"x".repeat(2000)}  \n`, "");
+    expect(status.counter).toBe("2,000 / 2,000");
+    expect(status.tooLong).toBe(false);
+    expect(status.canSave).toBe(true);
+  });
 });

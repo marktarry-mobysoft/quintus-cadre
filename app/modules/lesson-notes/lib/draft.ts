@@ -10,14 +10,15 @@ export type NoteDraftStatus = {
 };
 
 export function draftStatus(draft: string, saved: string): NoteDraftStatus {
-  const tooLong = draft.length > MAX_NOTE_LENGTH;
-  const empty = draft.trim().length === 0;
-  // The server trims a note before saving it, so whitespace at the ends is
-  // not a change.
-  const unsaved = draft.trim() !== saved;
+  // The server trims a note before saving and checks the limit on what is
+  // left, so whitespace at the ends neither counts nor is a change.
+  const trimmed = draft.trim();
+  const tooLong = trimmed.length > MAX_NOTE_LENGTH;
+  const empty = trimmed.length === 0;
+  const unsaved = trimmed !== saved;
 
   return {
-    counter: `${draft.length.toLocaleString("en")} / ${MAX_NOTE_LENGTH.toLocaleString("en")}`,
+    counter: `${trimmed.length.toLocaleString("en")} / ${MAX_NOTE_LENGTH.toLocaleString("en")}`,
     tooLong,
     canSave: unsaved && !empty && !tooLong,
     unsaved,

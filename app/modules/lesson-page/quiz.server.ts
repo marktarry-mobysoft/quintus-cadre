@@ -1,5 +1,6 @@
 export {
   getQuizByLessonId,
+  getLessonQuiz,
   getQuizWithQuestions,
   getBestAttempt,
   computeResult,

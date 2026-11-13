@@ -15,8 +15,6 @@ import { isBookmarked, toggleBookmark } from "~/lib/bookmarks.server";
 import { getNote, saveNote } from "~/lib/notes.server";
 import { MAX_NOTE_LENGTH } from "~/lib/notes";
 import { db } from "~/db";
-import { quizzes } from "~/db/schema";
-import { eq } from "drizzle-orm";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { data, isRouteErrorResponse, Link } from "react-router";
 import { z } from "zod";
@@ -47,6 +45,7 @@ import {
 } from "~/modules/lesson-page/discussion.server";
 import {
   getQuizByLessonId,
+  getLessonQuiz,
   getQuizWithQuestions,
   getBestAttempt,
   computeResult,
@@ -432,10 +431,8 @@ export async function action({ params, request }: Route.ActionArgs) {
     if (isNaN(quizId)) {
       throw data("Invalid quiz ID", { status: 400 });
     }
-    // Scope the quiz to this lesson so a quiz elsewhere can't be reached by
-    // posting its id to this route.
-    const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
-    if (!quiz || quiz.lessonId !== lessonId) {
+    const quiz = getLessonQuiz(lessonId, quizId);
+    if (!quiz) {
       throw data("Quiz not found", { status: 404 });
     }
 

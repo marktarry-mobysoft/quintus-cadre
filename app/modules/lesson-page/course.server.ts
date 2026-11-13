@@ -1,4 +1,3 @@
-/** The course, its curriculum, and the people a lesson page shows. */
 export {
   getCourseWithDetails,
   getLessonById,

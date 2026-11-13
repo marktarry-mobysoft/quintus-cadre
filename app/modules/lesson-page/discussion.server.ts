@@ -1,4 +1,3 @@
-/** The Questions & Discussion thread under a lesson. */
 export {
   getCommentById,
   getLessonThread,
